@@ -7,16 +7,38 @@ QT      += widgets
 QT      += core gui
 QT      += multimedia
 
-TEMPLATE = lib # app
+TEMPLATE = lib #app
+
+TARGET = QVideoStream
+
+equals(TEMPLATE, lib) {
+    CONFIG += dll
+    DEFINES += QVIDEOSTREAM_LIBRARY
+}
+
+equals(TEMPLATE, app) {
+    DEFINES += QVIDEOSTREAM_STATIC
+}
+
+CONFIG(debug, debug|release) {
+    DESTDIR = $$OUT_PWD/debug
+}
+
+CONFIG(release, debug|release) {
+    DESTDIR = $$OUT_PWD/release
+}
 
 CONFIG += c++17
 
 SOURCES += \
     main.cpp \
+    qvideostream.cpp \
     videorendereritem.cpp \
     videodecoder.cpp
 
 HEADERS += \
+    qvideostream.h \
+    qvideostream_global.h \
     videorendereritem.h \
     videodecoder.h
 
