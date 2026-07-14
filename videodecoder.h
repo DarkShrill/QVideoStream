@@ -13,32 +13,28 @@ extern "C" {
 #include <libavdevice/avdevice.h>
 }
 
-class VideoDecoder : public QThread
-{
+class VideoDecoder : public QThread {
     Q_OBJECT
 
 public:
-
     explicit VideoDecoder(QObject* parent = nullptr);
-    ~VideoDecoder();
+    ~VideoDecoder() override;
 
     void startDecoding(const QString& url);
     void stopDecoding();
     bool isDecoding() const;
 
 signals:
-
     void frameReady(QByteArray frameData, int width, int height, int stride);
 
 protected:
-
     void run() override;
 
 private:
-
-    QString             m_url;
-    std::atomic<bool>   m_running = false;
-    QMutex              m_mutex;
+    QString                         m_url;
+    std::atomic_bool                m_running{false};
+    std::atomic<AVFormatContext*>   m_formatContext{nullptr};
+    QMutex                          m_mutex;
 };
 
 #endif
