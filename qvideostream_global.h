@@ -1,0 +1,20 @@
+#ifndef QVIDEOSTREAM_GLOBAL_H
+#define QVIDEOSTREAM_GLOBAL_H
+
+#include <QtCore/qglobal.h>
+
+#if defined(QVIDEOSTREAM_STATIC)
+
+#define QVIDEOSTREAM_EXPORT
+
+#elif defined(QVIDEOSTREAM_LIBRARY)
+
+#define QVIDEOSTREAM_EXPORT Q_DECL_EXPORT
+
+#else
+
+#define QVIDEOSTREAM_EXPORT Q_DECL_IMPORT
+
+#endif
+
+#endif // QVIDEOSTREAM_GLOBAL_H
