@@ -1,5 +1,7 @@
 #include "videodecoder.h"
-
+extern "C" {
+#include <libavcodec/avcodec.h>
+}
 #include <QByteArray>
 #include <QChar>
 #include <QDir>
@@ -19,17 +21,21 @@ int interruptDecoding(void* opaque) {
     return decoder && !decoder->isDecoding();
 }
 
-void throttleOutputFrame(QElapsedTimer& timer) {
+bool shouldOutputFrame(QElapsedTimer& timer)
+{
     if (!timer.isValid()) {
         timer.start();
-        return;
+        return true;
     }
 
     const qint64 elapsedUs = timer.nsecsElapsed() / 1000;
+
     if (elapsedUs < MinOutputFrameIntervalUs) {
-        QThread::usleep(static_cast<unsigned long>(MinOutputFrameIntervalUs - elapsedUs));
+        return false;
     }
+
     timer.restart();
+    return true;
 }
 
 QString normalizedInputUrl(const QString& url) {
@@ -150,14 +156,51 @@ void VideoDecoder::run() {
     fmtCtx->interrupt_callback.opaque = this;
     m_formatContext.store(fmtCtx);
 
-    AVInputFormat* inputFmt = nullptr;
-    if (inputName.startsWith("video=", Qt::CaseInsensitive)) {
-        inputFmt = av_find_input_format("dshow");
-        av_dict_set(&options, "video_size", "1920x1080", 0);
-        av_dict_set(&options, "framerate", "30", 0);
-    }
+    const AVInputFormat* inputFmt = nullptr;
+
 
     const QByteArray inputBytes = inputName.toUtf8();
+
+#ifdef Q_OS_WIN
+    if (inputName.startsWith("video=", Qt::CaseInsensitive)) {
+    	inputFmt = av_find_input_format("dshow");
+	av_dict_set(&options, "video_size", "1920x1080", 0);
+	av_dict_set(&options, "framerate", "30", 0);
+    }
+#elif defined(Q_OS_LINUX)
+    if (inputName.startsWith("video=", Qt::CaseInsensitive)) {
+    	inputName = inputName.mid(QStringLiteral("video=").size()).trimmed();
+
+        if (inputName.isEmpty()) {
+            inputName = QStringLiteral("/dev/video0");
+    	}
+
+    	inputFmt = av_find_input_format("v4l2");
+    	av_dict_set(&options, "video_size", "640x480", 0);
+    	av_dict_set(&options, "framerate", "30", 0);
+    }
+		
+	const bool isRtsp =
+    inputName.startsWith(QStringLiteral("rtsp://"), Qt::CaseInsensitive);
+
+	if (isRtsp) {
+		// Mantengo esplicitamente RTP via UDP.
+		av_dict_set(&options, "rtsp_transport", "udp", 0);
+
+		// Buffer socket di ricezione: 10 MB.
+		av_dict_set(&options, "buffer_size", "10485760", 0);
+
+		// Numero di pacchetti conservati per riordinare quelli fuori sequenza.
+		av_dict_set(&options, "reorder_queue_size", "2048", 0);
+
+		// Ritardo massimo per il riordinamento RTP: 750 ms.
+		fmtCtx->max_delay = 750000;
+
+		// Timeout di lettura della socket: 5 secondi.
+		av_dict_set(&options, "timeout", "1000000", 0);
+	}
+#endif
+
     if (avformat_open_input(&fmtCtx, inputBytes.constData(), inputFmt, &options) != 0) {
         qWarning() << "VideoDecoder: cannot open input" << inputName;
         cleanup();
@@ -246,7 +289,10 @@ void VideoDecoder::run() {
     while (m_running && av_read_frame(fmtCtx, pkt) >= 0) {
         if (pkt->stream_index == videoStreamIndex && avcodec_send_packet(codecCtx, pkt) == 0) {
             while (m_running && avcodec_receive_frame(codecCtx, frame) == 0) {
-                throttleOutputFrame(outputFrameTimer);
+				// Continua a decodificare tutti i frame, ma limita solo l'output.
+				if (!shouldOutputFrame(outputFrameTimer)) {
+					continue;
+				}
                 if (!m_running) {
                     break;
                 }

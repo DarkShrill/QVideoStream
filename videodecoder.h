@@ -7,10 +7,12 @@
 #include <atomic>
 
 extern "C" {
-#include <libavformat/avformat.h>
-#include <libswscale/swscale.h>
-#include <libavutil/imgutils.h>
+#include <libavcodec/avcodec.h>
 #include <libavdevice/avdevice.h>
+#include <libavformat/avformat.h>
+#include <libavutil/imgutils.h>
+#include <libavutil/mem.h>
+#include <libswscale/swscale.h>
 }
 
 class VideoDecoder : public QThread {
