@@ -1,4 +1,4 @@
-#include "VideoRendererItem.h"
+#include "videorendereritem.h"
 #include <QSGSimpleTextureNode>
 #include <QSGTexture>
 #include <QDebug>

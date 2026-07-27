@@ -1,37 +1,20 @@
-QT      += quick
-CONFIG  += c++11
-QT      += qml
-QT      += network
-QT      += quickcontrols2
-QT      += widgets
-QT      += core gui
-QT      += multimedia
+QT += core gui quick qml network quickcontrols2 widgets multimedia
 
-TEMPLATE = lib #app
+CONFIG += c++17
+CONFIG -= app_bundle
 
+TEMPLATE = lib
 TARGET = QVideoStream
 
-equals(TEMPLATE, lib) {
-    CONFIG += dll
-    DEFINES += QVIDEOSTREAM_LIBRARY
-}
-
-equals(TEMPLATE, app) {
-    DEFINES += QVIDEOSTREAM_STATIC
-}
+DEFINES += QVIDEOSTREAM_LIBRARY
 
 CONFIG(debug, debug|release) {
     DESTDIR = $$OUT_PWD/debug
-}
-
-CONFIG(release, debug|release) {
+} else {
     DESTDIR = $$OUT_PWD/release
 }
 
-CONFIG += c++17
-
 SOURCES += \
-    main.cpp \
     qvideostream.cpp \
     videorendereritem.cpp \
     videodecoder.cpp
@@ -44,12 +27,13 @@ HEADERS += \
 
 RESOURCES += qml.qrc
 
-INCLUDEPATH += /usr/include \
-               /usr/local/include
+win32 {
+    CONFIG += dll
 
-win32{
-INCLUDEPATH += $$PWD/ffmpeg/include
-LIBS += $$PWD/ffmpeg/lib/avcodec.lib \
+    INCLUDEPATH += $$PWD/ffmpeg/include
+
+    LIBS += \
+        $$PWD/ffmpeg/lib/avcodec.lib \
         $$PWD/ffmpeg/lib/avdevice.lib \
         $$PWD/ffmpeg/lib/avfilter.lib \
         $$PWD/ffmpeg/lib/avformat.lib \
@@ -57,5 +41,28 @@ LIBS += $$PWD/ffmpeg/lib/avcodec.lib \
         $$PWD/ffmpeg/lib/postproc.lib \
         $$PWD/ffmpeg/lib/swresample.lib \
         $$PWD/ffmpeg/lib/swscale.lib
-message($$PWD/ffmpeg/lib)
+}
+
+unix:!macx {
+    CONFIG += shared
+
+    QMAKE_CFLAGS += --sysroot=/home/linux/rpi-sdk/sysroot
+    QMAKE_CXXFLAGS += --sysroot=/home/linux/rpi-sdk/sysroot
+    QMAKE_LFLAGS += --sysroot=/home/linux/rpi-sdk/sysroot
+
+    INCLUDEPATH += \
+        /home/linux/rpi-sdk/sysroot/usr/include \
+        /home/linux/rpi-sdk/sysroot/usr/include/aarch64-linux-gnu
+
+    LIBS += \
+        -L/home/linux/rpi-sdk/sysroot/usr/lib/aarch64-linux-gnu \
+        -lavformat \
+        -lavcodec \
+        -lavdevice \
+        -lavfilter \
+        -lavutil \
+        -lswscale \
+        -lswresample
+
+    QMAKE_LFLAGS += -Wl,-rpath,/usr/lib/aarch64-linux-gnu
 }
