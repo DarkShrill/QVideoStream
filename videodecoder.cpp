@@ -156,56 +156,75 @@ void VideoDecoder::run() {
     fmtCtx->interrupt_callback.opaque = this;
     m_formatContext.store(fmtCtx);
 
-    const AVInputFormat* inputFmt = nullptr;
+    //const AVInputFormat* inputFmt = nullptr;
 
 
-    const QByteArray inputBytes = inputName.toUtf8();
+    const AVInputFormat* inputFormat = nullptr;
+
 
 #ifdef Q_OS_WIN
-    if (inputName.startsWith("video=", Qt::CaseInsensitive)) {
-    	inputFmt = av_find_input_format("dshow");
-	av_dict_set(&options, "video_size", "1920x1080", 0);
-	av_dict_set(&options, "framerate", "30", 0);
+
+    if (inputName.startsWith(QStringLiteral("video="), Qt::CaseInsensitive)) {
+        inputFormat = av_find_input_format("dshow");
+
+        av_dict_set(&options, "video_size", "1920x1080", 0);
+        av_dict_set(&options, "framerate", "30", 0);
     }
+
 #elif defined(Q_OS_LINUX)
-    if (inputName.startsWith("video=", Qt::CaseInsensitive)) {
-    	inputName = inputName.mid(QStringLiteral("video=").size()).trimmed();
+
+    if (inputName.startsWith(QStringLiteral("video="), Qt::CaseInsensitive)) {
+        inputName = inputName
+                        .mid(QStringLiteral("video=").size())
+                        .trimmed();
 
         if (inputName.isEmpty()) {
             inputName = QStringLiteral("/dev/video0");
-    	}
+        }
 
-    	inputFmt = av_find_input_format("v4l2");
-    	av_dict_set(&options, "video_size", "640x480", 0);
-    	av_dict_set(&options, "framerate", "30", 0);
+        inputFormat = av_find_input_format("v4l2");
+
+        av_dict_set(&options, "video_size", "640x480", 0);
+        av_dict_set(&options, "framerate", "30", 0);
     }
-		
-	const bool isRtsp =
-    inputName.startsWith(QStringLiteral("rtsp://"), Qt::CaseInsensitive);
 
-	if (isRtsp) {
-		// Mantengo esplicitamente RTP via UDP.
-		av_dict_set(&options, "rtsp_transport", "udp", 0);
+    const bool isRtsp =
+        inputName.startsWith(QStringLiteral("rtsp://"), Qt::CaseInsensitive);
 
-		// Buffer socket di ricezione: 10 MB.
-		av_dict_set(&options, "buffer_size", "10485760", 0);
+    if (isRtsp) {
+        av_dict_set(&options, "rtsp_transport", "udp", 0);
+        av_dict_set(&options, "buffer_size", "10485760", 0);
+        av_dict_set(&options, "reorder_queue_size", "2048", 0);
 
-		// Numero di pacchetti conservati per riordinare quelli fuori sequenza.
-		av_dict_set(&options, "reorder_queue_size", "2048", 0);
+        fmtCtx->max_delay = 750000;
 
-		// Ritardo massimo per il riordinamento RTP: 750 ms.
-		fmtCtx->max_delay = 750000;
+        // Timeout di 5 secondi, espresso in microsecondi.
+        av_dict_set(&options, "timeout", "5000000", 0);
+    }
 
-		// Timeout di lettura della socket: 5 secondi.
-		av_dict_set(&options, "timeout", "1000000", 0);
-	}
 #endif
 
-    if (avformat_open_input(&fmtCtx, inputBytes.constData(), inputFmt, &options) != 0) {
+    // Deve essere creato dopo le eventuali modifiche a inputName.
+    const QByteArray inputBytes = inputName.toUtf8();
+
+#if LIBAVFORMAT_VERSION_MAJOR < 59
+
+    if (avformat_open_input(&fmtCtx, inputBytes.constData(), const_cast<AVInputFormat*>(inputFormat), &options) != 0) {
         qWarning() << "VideoDecoder: cannot open input" << inputName;
         cleanup();
         return;
     }
+
+#else
+
+    if (avformat_open_input(&fmtCtx, inputBytes.constData(), inputFormat, &options) != 0) {
+        qWarning() << "VideoDecoder: cannot open input" << inputName;
+        cleanup();
+        return;
+    }
+
+#endif
+
     m_formatContext.store(fmtCtx);
 
     if (avformat_find_stream_info(fmtCtx, nullptr) < 0) {
