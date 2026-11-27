@@ -1,3 +1,17 @@
+contains(QMAKE_CXX, .*aarch64.*) {
+    CONFIG += rpi_arm64
+}
+
+contains(CONFIG, rpi_arm64) {
+    QT_TARGET_PREFIX = $$[QT_SYSROOT]/usr
+    exists($$QT_TARGET_PREFIX/mkspecs/modules/qt_lib_multimedia.pri) {
+        QT_MODULE_INCLUDE_BASE = $$QT_TARGET_PREFIX/include
+        QT_MODULE_LIB_BASE = $$QT_TARGET_PREFIX/lib
+        QT_MODULE_BIN_BASE = $$QT_TARGET_PREFIX/bin
+        include($$QT_TARGET_PREFIX/mkspecs/modules/qt_lib_multimedia.pri)
+    }
+}
+
 QT += core gui quick qml network quickcontrols2 widgets multimedia
 
 CONFIG += c++17
@@ -46,16 +60,28 @@ win32 {
 unix:!macx {
     CONFIG += shared
 
-    QMAKE_CFLAGS += --sysroot=/home/linux/rpi-sdk/sysroot
-    QMAKE_CXXFLAGS += --sysroot=/home/linux/rpi-sdk/sysroot
-    QMAKE_LFLAGS += --sysroot=/home/linux/rpi-sdk/sysroot
+    contains(CONFIG, rpi_arm64) {
+        RPI_SYSROOT = $$[QT_SYSROOT]
+        isEmpty(RPI_SYSROOT) {
+            RPI_SYSROOT = /home/linux/rpi-sdk/sysroot
+        }
 
-    INCLUDEPATH += \
-        /home/linux/rpi-sdk/sysroot/usr/include \
-        /home/linux/rpi-sdk/sysroot/usr/include/aarch64-linux-gnu
+        message("QVideoStream: Raspberry Pi ARM64 build")
+        QMAKE_CFLAGS += --sysroot=$$RPI_SYSROOT
+        QMAKE_CXXFLAGS += --sysroot=$$RPI_SYSROOT
+        QMAKE_LFLAGS += --sysroot=$$RPI_SYSROOT
+
+        INCLUDEPATH += \
+            $$RPI_SYSROOT/usr/include \
+            $$RPI_SYSROOT/usr/include/aarch64-linux-gnu
+
+        LIBS += -L$$RPI_SYSROOT/usr/lib/aarch64-linux-gnu
+        QMAKE_LFLAGS += -Wl,-rpath,/usr/lib/aarch64-linux-gnu
+    } else {
+        message("QVideoStream: Linux Desktop build")
+    }
 
     LIBS += \
-        -L/home/linux/rpi-sdk/sysroot/usr/lib/aarch64-linux-gnu \
         -lavformat \
         -lavcodec \
         -lavdevice \
@@ -63,6 +89,4 @@ unix:!macx {
         -lavutil \
         -lswscale \
         -lswresample
-
-    QMAKE_LFLAGS += -Wl,-rpath,/usr/lib/aarch64-linux-gnu
 }

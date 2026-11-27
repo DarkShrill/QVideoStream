@@ -4,6 +4,7 @@
 #include "qvideostream_global.h"
 
 #include <QQuickItem>
+#include <QElapsedTimer>
 #include <QImage>
 #include <QMutex>
 
